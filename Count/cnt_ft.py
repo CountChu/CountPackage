@@ -12,6 +12,7 @@
 #
 
 import pandas as pd
+from typing import Any, Dict
 from pathlib import Path
 from Count import cnt_util
 
@@ -19,32 +20,31 @@ br = breakpoint
 
 class FileTable:
     def __init__(self, cfg, table_name):
-        table_d = cnt_util.build_d(cfg['database']['tables'], 'name')
+        table_d = cnt_util.build_d(cfg["database"]["tables"], "name")
         assert table_name in table_d, table_name
 
         table = table_d[table_name]
 
-        self.name = table['name']
-        self.path = table['path']
-        self.columns = table['columns']
-        self.dirs = table.get('dirs', [])
-        self.ext = table['ext']
+        self.name = table["name"]
+        self.path = table["path"]
+        self.columns = table["columns"]
+        self.dirs = table.get("dirs", [])
+        self.ext = table["ext"]
 
-        self.realPath = Path(cfg['__dir__']) / cfg['database']['path'] / self.path
+        self.realPath = Path(cfg["__dir__"]) / cfg["database"]["path"] / self.path
 
-        assert self.ext in ['xls', 'json', 'csv', 'txt', 'numbers', 'yaml'], self.ext
-        self.file_p_ls = [x for x in self.realPath.rglob('*') if x.suffix == f".{self.ext}"]
+        assert self.ext in ["xls", "json", "csv", "txt", "numbers", "yaml"], self.ext
+        self.file_p_ls = [x for x in self.realPath.rglob("*") if x.suffix == f".{self.ext}"]
 
         self._build_file_table()
 
-
     def _build_file_table(self):
         path_ls = [str(file_p.relative_to(self.realPath)) for file_p in self.file_p_ls]
-        df = pd.DataFrame({'path': path_ls})
+        df = pd.DataFrame({"path": path_ls})
 
         ls_d = {column: [] for column in self.columns}
         for file_p in self.file_p_ls:
-            values = file_p.stem.split('#')
+            values = file_p.stem.split("#")
             assert len(values) == len(self.columns), values
             for column, value in zip(self.columns, values):
                 ls_d[column].append(value)
@@ -55,15 +55,15 @@ class FileTable:
         self.files = df
 
     def split_path(self, file_p):
-        values = file_p.stem.split('#')
+        values = file_p.stem.split("#")
         assert len(values) == len(self.columns), values
         return values
 
     def load_df(self):
         out = None
         for _, row in self.files.iterrows():
-            file_p = self.realPath / row['path']
-            if self.ext == 'csv':
+            file_p = self.realPath / row["path"]
+            if self.ext == "csv":
                 df = pd.read_csv(file_p)
             else:
                 raise Exception("Unsupported file extension")
@@ -75,9 +75,25 @@ class FileTable:
     def load_json_as_array(json_p_ls):
         out = []
         for json_p in json_p_ls:
-            if json_p.suffix == '.json':
+            if json_p.suffix == ".json":
                 row = cnt_util.load_json(json_p)
                 out += row if isinstance(row, list) else [row]
+            else:
+                raise Exception("Unsupported file extension")
+        return out
+
+    def load_json_as_tables(self, json_p_ls):
+        out = []
+        for json_p in json_p_ls:
+            if json_p.suffix == ".json":
+                rows = cnt_util.load_json(json_p)
+                values = self.split_path(json_p)
+                table = {}
+                for name, value in zip(self.columns, values):
+                    assert name != "rows"
+                    table[name] = value
+                table["rows"] = rows
+                out.append(table)
             else:
                 raise Exception("Unsupported file extension")
         return out
@@ -104,7 +120,7 @@ class FileTable:
                 assert False, f"Unsupported filter value type: {type(value)}"
 
         rows = df[f0]
-        
+
         # if last is assigned, get the last rows.
         # For example:
         #   rows:
@@ -116,15 +132,16 @@ class FileTable:
 
         if last is not None:
             columns = []
-            for column, value in filter.items():  
-                columns.append(column)     
+            for column in self.columns:
+                if column != last:
+                    columns.append(column)
             rows = rows.groupby(columns).first().reset_index()
- 
+
         return rows
 
     def get_files(self, filter, last=None):
         rows = self.get_rows(filter, last)
-        return [self.realPath / row['path'] for _, row in rows.iterrows()]
+        return [self.realPath / row["path"] for _, row in rows.iterrows()]
 
     def get_one_file(self, filter):
         files = self.get_files(filter)
@@ -142,11 +159,11 @@ class FileTable:
         print(f"Writing {json_p}")
         cnt_util.save_json(data_j, json_p)
 
-    def build_file_p(self, columns):
+    def build_file_p(self, columns: Dict[str, Any]) -> Path:
         if len(columns) != len(self.columns):
             return None
 
-        stem = ''.join(f"{value}#" for key, value in columns.items() if key in self.columns)
+        stem = "".join(f"{value}#" for key, value in columns.items() if key in self.columns)
         out = self.realPath
 
         if self.dirs != None:
