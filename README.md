@@ -9,11 +9,16 @@ The module provides utility functions of Count.
 ## Count.cnt_html
 The module provides functions to generate HTML content.
 
-# Install
-1. Check out the repository.
-2. Goto the directory and input the command.
+# Install the package
+[CountPackage]
 ```
-make setup
+% pip install .
+```
+
+# Install the package to be editable
+[CountPackage]
+```
+% pip install -e . 
 ```
 
 # Versions

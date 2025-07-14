@@ -13,21 +13,11 @@
 
 import sys
 import os
-import yaml
+import arrow
 import json
 from datetime import datetime
 
-import pdb
-br = pdb.set_trace
-
-class Config:
-    def __init__(self, d):
-        self._d = d
-        for key, value in d.items():
-            setattr(self, key, value)
-
-    def __str__(self):
-        return '%s' % self._d
+br = breakpoint
 
 def load_json(fn):
     f = open(fn, encoding='utf-8')
@@ -44,30 +34,8 @@ def save_json(data, fn, ensure_ascii=False):
     f = open(fn, 'w', encoding='utf-8')
     json.dump(data, f, ensure_ascii=ensure_ascii, indent=4) 
     f.close()
- 
-def load_yaml(fn, default=None):
-    if os.path.exists(fn):
-        f = open(fn, 'r', encoding='utf-8')
-        out = yaml.load(f, Loader=yaml.CLoader)
-        f.close()
 
-    else:
-        assert default != None
-        out = default
-
-    out['__dir__'] = os.path.dirname(fn)
-
-    return out         
-
-def save_yaml(data, fn):
-    print(f'Saving {fn}')
-    
-    f = open(fn, 'w', encoding='utf-8')
-    yaml.dump(data, f, default_flow_style=False, encoding='utf-8', allow_unicode=True)
-    f.close()
-
-
-def get_today_str():
+def ____get_today_str():
     today_str = datetime.today().strftime('%Y-%m-%d')
     return today_str    
 
@@ -90,15 +58,14 @@ def get_time_str_2(ts):
 
 def check_file_exist(fn):
     if not os.path.exists(fn):
-        print('Error. The file does not exist.')
-        print(fn)
-        sys.exit(1)
+        raise FileNotFoundError(fn)
 
 def check_dir_exist(dn):
     if not os.path.exists(dn):
         print('Error. The directory does not exist.')
         print(dn)
         sys.exit(1)  
+     
 
 def check_dir_exist_and_make(dn):
     if not os.path.exists(dn):
@@ -156,8 +123,26 @@ def build_d(ls, id=None):
         id_name = id
 
     for item in ls:
-        assert item[id_name] not in out
+        if id_name not in item: 
+            print('Error!!! [%s] is not in the item.' % id_name)
+            assert False
+            sys.exit(1)
+
         out[item[id_name]] = item
+
+    return out
+
+def build_d_2(ls, id=None):
+    out = {}
+
+    if id == None:
+        id_name = 'id'
+    else:
+        id_name = id
+
+    for item in ls:
+        assert item.__dict__[id_name] not in out
+        out[item.__dict__[id_name]] = item
 
     return out
 
@@ -204,6 +189,25 @@ def get_dn_ls(home):
         bn_ls.append(bn)
 
     return dn_ls, bn_ls
+
+def get_fn_ls(home, filter=None):
+    fn_ls = []
+    bn_ls = []
+    for bn in os.listdir(home):
+        if bn == '.DS_Store':
+            continue
+
+        fn = os.path.join(home, bn)
+        if not os.path.isfile(fn):
+            continue
+
+        if filter != None and not filter(bn, fn):
+            continue
+
+        fn_ls.append(fn)
+        bn_ls.append(bn)
+
+    return fn_ls, bn_ls
 
 
 def get_latest_dn(home):
@@ -254,3 +258,82 @@ def file_need_gen(fn1, fn2):
         print('    New: %s @ %s' % (get_time_str(fn2_mtime*1000), os.path.basename(fn2)))
 
     return out
+
+#
+# Find subdirectories of home
+#
+
+def build_dn_d(home, filter=None):
+    out = {}
+    for bn in os.listdir(home):
+        dn = os.path.join(home, bn)
+        if not os.path.isdir(dn):
+            continue
+
+        if filter != None and not filter(bn, dn):
+            continue
+
+        out[bn] = dn
+
+    return out
+
+def get_last_year_date(d):
+    # Get the same day last year
+    last_year_date = d.replace(year=d.year - 1)
+
+    return last_year_date    
+
+def get_today_and_last_year_date():
+    today = arrow.now()
+    last_year_date = today.replace(year=today.year - 1)
+
+    return today, last_year_date
+
+def percent_str(v, precise=1, symbol=True):
+    v = v * 100
+    v = round(v, 1)
+    
+    if v >= 0:
+        if symbol:
+            fmt = '+%.'+str(precise)+'f%%'
+        else:
+            fmt = '%.'+str(precise)+'f%%'
+        out = fmt % v
+    else:
+        fmt = '-%.'+str(precise)+'f%%'
+        out = fmt % (-v)
+
+    if v == 0:
+        out = ''
+
+    return out
+
+def value_str(value, _type):
+    if _type == 0:
+        out = '%d' % value
+    elif _type == 1:
+        out = '%.1f' % round(value, 1)
+    elif _type == 2:
+        out = '%.2f' % round(value, 2)
+    elif _type == 3:
+        out = '%.3f' % round(value, 3)
+
+    return out
+
+def value_str_align(value, _type, width):
+    out = round(value, _type)
+    fmt = '%'+str(width)+'.3f'
+    #out2 = '%10.3f' % out
+    out2 = fmt % out
+    space =  ' ' * len(out2)
+    
+    #
+    # strip the right zeros and fill it with ' '
+    # For example:
+    #   '2.423000' -> '2.423   '
+    #
+
+    out3 = out2.rstrip('0')
+    out4 = out3 + space[len(out3):]
+
+    return out4
