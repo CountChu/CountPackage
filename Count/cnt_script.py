@@ -18,11 +18,19 @@ br = breakpoint
 
 
 MODULE_P = Path(__file__)
-SCRIPT_P = MODULE_P.parent / 'scripts'
+SCRIPT_P = MODULE_P.parent / "scripts"
+
 
 def numbers_add_rows(numbers_fn, sheet_index, row_count, base_row):
-    script_fn = str(SCRIPT_P / 'numbers_add_rows.applescript')
-    cmd = ["osascript", script_fn, numbers_fn, str(sheet_index), str(row_count), str(base_row)]
+    script_fn = str(SCRIPT_P / "numbers_add_rows.applescript")
+    cmd = [
+        "osascript",
+        script_fn,
+        numbers_fn,
+        str(sheet_index),
+        str(row_count),
+        str(base_row),
+    ]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -32,12 +40,13 @@ def numbers_add_rows(numbers_fn, sheet_index, row_count, base_row):
 
     pass
 
-def numbers_add_rows_(fn, sheet_index, count):
-    lines = ''
-    for i in range(count):
-        lines += 'add row below row rowCount\n'
 
-    script = f'''
+def numbers_add_rows_(fn, sheet_index, count):
+    lines = ""
+    for i in range(count):
+        lines += "add row below row rowCount\n"
+
+    script = f"""
     tell application "Numbers"
         -- Open the document
         set docPath to "{fn}"
@@ -59,6 +68,6 @@ def numbers_add_rows_(fn, sheet_index, count):
             end tell
         end tell
     end tell
-    '''
+    """
 
     subprocess.run(["osascript", "-e", script])
