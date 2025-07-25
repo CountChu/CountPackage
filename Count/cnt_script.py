@@ -21,7 +21,8 @@ MODULE_P = Path(__file__)
 SCRIPT_P = MODULE_P.parent / "scripts"
 
 
-def numbers_add_rows(numbers_fn, sheet_index, row_count, base_row):
+def numbers_add_rows(numbers_p: Path, sheet_index, row_count, base_row):
+    numbers_fn = str(numbers_p.absolute())
     script_fn = str(SCRIPT_P / "numbers_add_rows.applescript")
     cmd = [
         "osascript",
@@ -33,6 +34,7 @@ def numbers_add_rows(numbers_fn, sheet_index, row_count, base_row):
     ]
 
     try:
+        br()
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         print("Script output:", result.stdout)
     except subprocess.CalledProcessError as e:
