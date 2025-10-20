@@ -12,11 +12,12 @@
 #
 
 import sys
-import os 
+import os
 import yaml
 from pathlib import Path
 
 br = breakpoint
+
 
 class Config:
     def __init__(self, d):
@@ -25,34 +26,40 @@ class Config:
             setattr(self, key, value)
 
     def __str__(self):
-        return '%s' % self._d
+        return "%s" % self._d
 
-def load_app_config(fn):
-    config_p = Path(fn) 
-    if config_p.parent == Path('.'):
-        app_p = Path(os.path.abspath(sys.argv[0])).parent 
-        config_p = app_p / fn 
+
+def load_app_config(fn, working_p=None):
+    config_p = Path(fn)
+    if config_p.parent == Path("."):
+        if working_p is None:
+            app_p = Path(os.path.abspath(sys.argv[0])).parent
+        else:
+            app_p = working_p
+        config_p = app_p / fn
 
     cfg = load(config_p)
     return cfg
- 
+
+
 def load(fn, default=None):
     if os.path.exists(fn):
-        f = open(fn, 'r', encoding='utf-8')
+        f = open(fn, "r", encoding="utf-8")
         out = yaml.load(f, Loader=yaml.CLoader)
         f.close()
 
     else:
-        assert default != None
+        assert default != None, fn
         out = default
 
-    out['__dir__'] = os.path.dirname(fn)
+    out["__dir__"] = os.path.dirname(fn)
 
-    return out         
+    return out
+
 
 def save(data, fn):
-    print(f'Saving {fn}')
-    
-    f = open(fn, 'w', encoding='utf-8')
-    yaml.dump(data, f, default_flow_style=False, encoding='utf-8', allow_unicode=True)
+    print(f"Saving {fn}")
+
+    f = open(fn, "w", encoding="utf-8")
+    yaml.dump(data, f, default_flow_style=False, encoding="utf-8", allow_unicode=True)
     f.close()

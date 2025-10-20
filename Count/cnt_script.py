@@ -34,7 +34,6 @@ def numbers_add_rows(numbers_p: Path, sheet_index, row_count, base_row):
     ]
 
     try:
-        br()
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         print("Script output:", result.stdout)
     except subprocess.CalledProcessError as e:

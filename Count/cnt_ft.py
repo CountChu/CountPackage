@@ -12,27 +12,66 @@
 #
 
 import pandas as pd
-from typing import Any, Dict, Union
+import arrow
+from typing import Any, Dict, Union, List
 from pathlib import Path
 from Count import cnt_util
 
 br = breakpoint
 
 
+class Artifact:
+    def __init__(self, db_y: Dict[str, Any], date):
+        self.home = db_y["__dir__"]
+        self.date = date
+
+        # artifactGroupDict[groupId] = artifactGroup
+        # artifactGroup = {home, artifacts, artifactDict}
+        # artifactDict[artifactId] = artifact
+
+        self.artifactGroupDict = db_y["artifact"]
+
+        for _, artifactGroup in self.artifactGroupDict.items():
+            artifactGroup["artifactDict"] = cnt_util.build_d(artifactGroup["artifacts"])
+
+    def get_path(
+        self, group_id: str, artifact_id: str, postfix_ls: List[str] | None = None
+    ) -> Path:
+        artifactGroup = self.artifactGroupDict[group_id]
+        artifact = artifactGroup["artifactDict"][artifact_id]
+        name = artifact.get("path")
+
+        if group_id == "log":
+            if "time" in artifact and artifact["time"]:
+                time_str = arrow.now().format("HH-mm")
+                name = f"{self.date}-{time_str}-{name}"
+            else:
+                name = f"{self.date}-{name}"
+
+        if postfix_ls is not None:
+            for postfix in postfix_ls:
+                name = f"{name}-{postfix}"
+
+        if "ext" in artifact:
+            name = f"{name}.{artifact['ext']}"
+
+        out = Path(self.home) / artifactGroup["home"] / name
+        return out
+
+
 class FileTable:
-    def __init__(self, cfg: Dict[str, Any], table_name: str):
-        table_d = cnt_util.build_d(cfg["database"]["tables"], "name")
-        assert table_name in table_d, table_name
-
-        table = table_d[table_name]
-
-        self.name = table["name"]
+    def __init__(self, home: str, path: str, table: Dict[str, Any]):
+        self.id = table["id"]
         self.path = table["path"]
         self.columns = table["columns"]
         self.dirs = table.get("dirs", [])
         self.ext = table["ext"]
 
-        self.realPath: Path = Path(cfg["__dir__"]) / cfg["database"]["path"] / self.path
+        self.realPath: Path = Path(home) / path / self.path
+        self.loaded = False
+
+    def load(self):
+        assert self.realPath.exists(), self.realPath
 
         self.files: pd.DataFrame = pd.DataFrame()
 
@@ -44,12 +83,14 @@ class FileTable:
             "numbers",
             "yaml",
             "xml",
+            "html",
         ], self.ext
         self.file_p_ls = [
             x for x in self.realPath.rglob("*") if x.suffix == f".{self.ext}"
         ]
 
         self._build_file_table()
+        self.loaded = True
 
     def _build_file_table(self):
         path_ls = [str(file_p.relative_to(self.realPath)) for file_p in self.file_p_ls]
@@ -73,6 +114,8 @@ class FileTable:
         return values
 
     def load_df(self) -> pd.DataFrame | None:
+        assert self.loaded
+
         out = None
 
         for index, row in self.files.iterrows():  # type: ignore
@@ -100,13 +143,19 @@ class FileTable:
         out: list[Dict[str, Any]] = []
         for json_p in json_p_ls:
             if json_p.suffix == ".json":
-                rows = cnt_util.load_json(str(json_p))
+                data = cnt_util.load_json(str(json_p))
                 values = self.split_path(json_p)
                 table: Dict[str, Any] = {}
+
                 for name, value in zip(self.columns, values):
-                    assert name != "rows"
+                    assert name not in ["rows", "row"]
                     table[name] = value
-                table["rows"] = rows
+
+                if type(data) is dict:
+                    table["row"] = data
+                elif type(data) is list:
+                    table["rows"] = data
+
                 out.append(table)
             else:
                 raise Exception("Unsupported file extension")
@@ -115,6 +164,8 @@ class FileTable:
     def get_rows(
         self, filter: Dict[str, Union[str, list[str]]], last: str | None = None
     ) -> pd.DataFrame:
+        assert self.loaded
+
         df: pd.DataFrame = self.files.copy()
 
         if last is not None:
@@ -132,50 +183,78 @@ class FileTable:
                     f0 = df[column].isin(value)  # type: ignore
                 else:
                     f0 = f0 & df[column].isin(value)  # type: ignore
+            elif value is None:
+                continue
             else:
                 assert False, f"Unsupported filter value type: {type(value)}"
 
         if f0 is None:
-            raise ValueError("No filter matched any rows")
+            rows = df
 
-        rows: pd.DataFrame = df[f0]
+            if last is not None:
+                columns: list[str] = []
+                for column in self.columns:
+                    if column != last:
+                        columns.append(column)
+                if columns != []:
+                    rows = rows.groupby(columns).first().reset_index()  # type: ignore
+                else:
+                    last_value = self.get_last_value(last)
+                    rows = rows[rows[last] == last_value]  # type: ignore
 
-        # if last is assigned, get the last rows.
-        # For example:
-        #   rows:
-        #       [0] 2025-07-09, 0056.TW
-        #       [1] 2025-07-09, 0050.TW
-        #       [2] 2025-07-08, 0056.TW
-        #       [3] 2025-07-08, 0050.TW
-        #   Get [0] and [1]
+        else:
+            rows: pd.DataFrame = df[f0]
 
-        if last is not None:
-            columns: list[str] = []
-            for column in self.columns:
-                if column != last:
-                    columns.append(column)
-            rows = rows.groupby(columns).first().reset_index()  # type: ignore
+            # if last is assigned, get the last rows.
+            # For example:
+            #   rows:
+            #       [0] 2025-07-09, 0056.TW
+            #       [1] 2025-07-09, 0050.TW
+            #       [2] 2025-07-08, 0056.TW
+            #       [3] 2025-07-08, 0050.TW
+            #   Get [0] and [1]
+
+            if last is not None:
+                columns: list[str] = []
+                for column in self.columns:
+                    if column != last:
+                        columns.append(column)
+                rows = rows.groupby(columns).first().reset_index()  # type: ignore
 
         return rows
 
     def get_files(
         self, filter: Dict[str, Union[str, list[str]]], last: str | None = None
     ) -> list[Path]:
+        assert self.loaded, "File table is not loaded."
+
         rows = self.get_rows(filter, last)
         return [self.realPath / row["path"] for _, row in rows.iterrows()]  # type: ignore
 
     def get_one_file(
         self, filter: Dict[str, Union[str, list[str]]], last: str | None = None
-    ) -> Path:
+    ) -> Path | None:
         files = self.get_files(filter, last)
-        assert len(files) == 1, files
+        assert len(files) <= 1, files
+        if len(files) == 0:
+            return None
+
         file = files[0]
 
         return file
 
     def build_file_p(self, columns: Dict[str, Any]) -> Path | None:
+        # Check columns
+
         if len(columns) != len(self.columns):
+            print("Column count does not match.")
             return None
+
+        for column in columns.keys():
+            assert column in self.columns, column
+
+        # if len(columns) != len(self.columns):
+        #    return None
 
         stem = "".join(
             f"{value}#" for key, value in columns.items() if key in self.columns
@@ -190,8 +269,36 @@ class FileTable:
         return out / f"{stem[:-1]}.{self.ext}"
 
     def get_last_value(self, column: str) -> Any:
+        assert self.loaded
+
         df: pd.DataFrame = self.files.copy()
         df2 = df.sort_values(column, ascending=False, inplace=False)  # type: ignore
 
         out: Any = df2.iloc[0][column]  # type: ignore
         return out  # type: ignore
+
+
+class Database:
+    def __init__(self, db_y: Dict[str, Any]):
+        self.home = db_y["__dir__"]
+
+        db = db_y["database"]
+        self.path = db["path"]
+
+        self.file_d = None
+        if "files" in db:
+            self.file_d = cnt_util.build_d(db["files"])
+
+        self.table_d = None
+        if "tables" in db:
+            self.table_d = cnt_util.build_d(db["tables"])
+
+    def get_path(self, file_id: str) -> Path:
+        out = Path(self.home) / self.path / self.file_d[file_id]["path"]
+        return out
+
+    def build_file_table(self, table_id: str) -> FileTable:
+        assert table_id in self.table_d, table_id
+        table = self.table_d[table_id]
+        ft = FileTable(self.home, self.path, table)
+        return ft

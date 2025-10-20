@@ -139,8 +139,7 @@ def build_d(
 
     for item in ls:
         if id_name not in item:
-            print("Error!!! [%s] is not in the item." % id_name)
-            assert False
+            print(f"Error!!! {id_name=} is not in the {item=}.")
             sys.exit(1)
 
         out[item[id_name]] = item
@@ -306,14 +305,14 @@ def build_dn_d(home, filter=None):
     return out
 
 
-def get_last_year_date(d):
-    # Get the same day last year
-    last_year_date = d.replace(year=d.year - 1)
+def get_date_and_last_year_date(date_str):
+    date = arrow.get(date_str, "YYYY-MM-DD")
+    last_year_date = date.replace(year=date.year - 1)
 
-    return last_year_date
+    return date, last_year_date
 
 
-def get_today_and_last_year_date():
+def ___get_today_and_last_year_date():
     today = arrow.now()
     last_year_date = today.replace(year=today.year - 1)
 

@@ -13,27 +13,37 @@
 
 br = breakpoint
 
-c_n = 'style="background-color: #e0e0e0;"'    # normal color
+c_n = "#e0e0e0"  # normal color
+c_r = "#ffcdd2"  # red color
+c_g = "#dcedc8"  # green color
+c_y = "#fff59d"  # yellow color
+c_b = "#bbdefb"  # blue color
 
-c_r = 'style="background-color: #ffcdd2;"'    # red color
-c_rh = 'style="background-color: #e57373;"'
+c_rh = "#e57373"  # red highlight color
+c_gh = "#aed581"  # green highlight color
+c_yh = "#ffeb3b"  # yellow highlight color
+c_bh = "#64b5f6"  # blue highlight color
 
-c_g = 'style="background-color: #dcedc8;"'    # green color
-c_gh = 'style="background-color: #aed581;"'
+b_c_n = f'style="background-color: {c_n};"'
+b_c_r = f'style="background-color: {c_r};"'
+b_c_g = f'style="background-color: {c_g};"'
+b_c_y = f'style="background-color: {c_y};"'
+b_c_b = f'style="background-color: {c_b};"'
 
-c_y = 'style="background-color: #fff59d;"'    # yellow color
-c_yh = 'style="background-color: #ffeb3b;"'
+b_c_rh = f'style="background-color: {c_rh};"'
+b_c_gh = f'style="background-color: {c_gh};"'
+b_c_yh = f'style="background-color: {c_yh};"'
+b_c_bh = f'style="background-color: {c_bh};"'
 
-c_b = 'style="background-color: #bbdefb;"'    # blue color
-c_bh = 'style="background-color: #64b5f6;"'
 
 def meta():
-    t = ''
+    t = ""
     t += '<meta charset="utf-8"/>\n'
     return t
 
+
 def style():
-    out = '''
+    out = """
 <style>
 td {
     font-family: monospace;
@@ -46,47 +56,47 @@ table {
     border-spacing: 0;
 }
 </style>
-    ''' 
+    """
 
     return out
-  
+
 
 def table(heads, names, rows, ctx=None, f=None, fc=None, fh=None):
-    t =     ''
+    t = ""
 
-    t +=         '<table border="1">\n'
-    t +=         '    <thead>\n'
-    t +=         '        <tr style="text-align: right;">\n'
+    t += '<table border="1">\n'
+    t += "    <thead>\n"
+    t += '        <tr style="text-align: right;">\n'
     if fh == None:
         for head in heads:
-            t += '            <th>%s</th>\n' % head
+            t += "            <th>%s</th>\n" % head
     else:
         for head in heads:
             text = fh(head)
-            t += '            <th>%s</th>\n' % text
-    t +=         '        </tr>\n'       
-    t +=         '    </thead>\n'    
+            t += "            <th>%s</th>\n" % text
+    t += "        </tr>\n"
+    t += "    </thead>\n"
 
-    t +=         '    <tbody>\n'
+    t += "    <tbody>\n"
     for row in rows:
-        t +=     '        <tr>\n'
+        t += "        <tr>\n"
         for name in names:
             if name in row:
                 value = row[name]
             else:
-                value = ''
+                value = ""
 
             text = value
             if f != None:
                 text = f(name, value, row, ctx)
 
-            color = ''
+            color = ""
             if fc != None:
                 color = fc(name, value, text, row, ctx)
 
-            t += '            <td %s>%s</td>\n' % (color, text) 
-        t +=     '        </tr>\n'
-    t +=         '    </tbody>\n'
-    t +=         '</table>\n'  
+            t += "            <td %s>%s</td>\n" % (color, text)
+        t += "        </tr>\n"
+    t += "    </tbody>\n"
+    t += "</table>\n"
 
     return t
