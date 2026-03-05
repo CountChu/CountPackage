@@ -12,6 +12,7 @@
 #
 
 import pandas as pd
+import sys
 import arrow
 from typing import Any, Dict, Union, List
 from pathlib import Path
@@ -99,7 +100,15 @@ class FileTable:
         ls_d: Dict[str, Any] = {column: [] for column in self.columns}
         for file_p in self.file_p_ls:
             values = file_p.stem.split("#")
-            assert len(values) == len(self.columns), values
+            if len(values) != len(self.columns):
+                print("Error in file table building:")
+                print(f"    {len(values)=}")
+                print(f"    {len(self.columns)=}")
+                print(f"    {values=}")
+                print(f"    {self.columns=}")
+                print(f"    {file_p=}")
+                sys.exit(0)
+
             for column, value in zip(self.columns, values):
                 ls_d[column].append(value)
 
