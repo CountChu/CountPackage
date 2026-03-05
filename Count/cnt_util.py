@@ -162,6 +162,29 @@ def build_d_2(ls, id=None):
     return out
 
 
+def build_group(
+    ls: list[Dict[str, Any]], id: str | None = None
+) -> Dict[str, list[Dict[str, Any]]]:
+    out: Dict[str, list[Dict[str, Any]]] = {}
+
+    if id == None:
+        id_name = "id"
+    else:
+        id_name = id
+
+    for item in ls:
+        if id_name not in item:
+            print(f"Error!!! {id_name=} is not in the {item=}.")
+            sys.exit(1)
+
+        if item[id_name] not in out:
+            out[item[id_name]] = []
+
+        out[item[id_name]].append(item)
+
+    return out
+
+
 def join_d(d1, d2):
     out = {}
     for id1, item1 in d1.items():
