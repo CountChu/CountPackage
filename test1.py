@@ -13,6 +13,8 @@
 
 import pytest
 from pathlib import Path
+import os
+import sys
 
 from Count import cnt_numbers
 from Count import cnt_script
@@ -66,10 +68,14 @@ def test_get_column_index(letter, exp):
 
 
 def test_numbers_add_rows():
-    fn_p = Path("test_data/投資 - 下單.numbers")
+
+    # Get the absolute path of the test1.py.
+
+    test_p = Path(__file__).absolute()
+
+    fn_p = test_p.parent / "test_data/投資 - 下單 - Test.numbers"
     assert fn_p.exists(), f"File {fn_p} does not exist."
     sheet_index = 1
     row_count = 3
     base_row = 4
-    br()
     cnt_script.numbers_add_rows(fn_p, sheet_index, row_count, base_row)
