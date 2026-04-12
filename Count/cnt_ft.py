@@ -16,59 +16,22 @@ import sys
 import arrow
 from typing import Any, Dict, Union, List
 from pathlib import Path
+import os
+
 from Count import cnt_util
 
 br = breakpoint
 
 
-class Artifact:
-    def __init__(self, db_y: Dict[str, Any], date):
-        self.home = db_y["__dir__"]
-        self.date = date
-
-        # artifactGroupDict[groupId] = artifactGroup
-        # artifactGroup = {home, artifacts, artifactDict}
-        # artifactDict[artifactId] = artifact
-
-        self.artifactGroupDict = db_y["artifact"]
-
-        for _, artifactGroup in self.artifactGroupDict.items():
-            artifactGroup["artifactDict"] = cnt_util.build_d(artifactGroup["artifacts"])
-
-    def get_path(
-        self, group_id: str, artifact_id: str, postfix_ls: List[str] | None = None
-    ) -> Path:
-        artifactGroup = self.artifactGroupDict[group_id]
-        artifact = artifactGroup["artifactDict"][artifact_id]
-        name = artifact.get("path")
-
-        if group_id == "log":
-            if "time" in artifact and artifact["time"]:
-                time_str = arrow.now().format("HH-mm")
-                name = f"{self.date}-{time_str}-{name}"
-            else:
-                name = f"{self.date}-{name}"
-
-        if postfix_ls is not None:
-            for postfix in postfix_ls:
-                name = f"{name}-{postfix}"
-
-        if "ext" in artifact:
-            name = f"{name}.{artifact['ext']}"
-
-        out = Path(self.home) / artifactGroup["home"] / name
-        return out
-
-
 class FileTable:
-    def __init__(self, home: str, path: str, table: Dict[str, Any]):
+    def __init__(self, home: str, table: Dict[str, Any]):
         self.id = table["id"]
         self.path = table["path"]
         self.columns = table["columns"]
         self.dirs = table.get("dirs", [])
         self.ext = table["ext"]
 
-        self.realPath: Path = Path(home) / path / self.path
+        self.realPath: Path = Path(home) / self.path
         self.loaded = False
 
     def load(self):
@@ -287,27 +250,249 @@ class FileTable:
         return out  # type: ignore
 
 
-class Database:
-    def __init__(self, db_y: Dict[str, Any]):
+class ArtifactManager:
+    def __init__(self, db_y: Dict[str, Any], date: str):
         self.home = db_y["__dir__"]
+        self.date = date
 
-        db = db_y["database"]
-        self.path = db["path"]
+        self.config = db_y["artifactConfig"]
 
-        self.file_d = None
-        if "files" in db:
-            self.file_d = cnt_util.build_d(db["files"])
+        # Normalize artifacts
 
-        self.table_d = None
-        if "tables" in db:
-            self.table_d = cnt_util.build_d(db["tables"])
+        for _, artifactGroup in self.config.items():
+            home = artifactGroup["home"]
 
-    def get_path(self, file_id: str) -> Path:
-        out = Path(self.home) / self.path / self.file_d[file_id]["path"]
+            for artifact in artifactGroup["artifacts"]:
+
+                if "path" in artifact:
+                    pass
+
+                elif "area" in artifact:
+                    new_area = {}
+                    for areaName, artifact_raw in artifact["area"].items():
+                        if type(artifact_raw) is str:
+                            _artifact = {}
+                            _artifact["id"] = f"{artifact['id']}.{areaName}"
+                            _artifact["path"] = artifact_raw
+                            new_area[areaName] = _artifact
+
+                        elif type(artifact_raw) is dict:
+                            _artifact = {}
+                            _artifact["id"] = f"{artifact['id']}.{areaName}"
+                            _artifact["path"] = artifact_raw["path"]
+                            _artifact["info"] = None
+                            if "info" in artifact_raw:
+                                _artifact["info"] = artifact_raw["info"]
+                            new_area[areaName] = _artifact
+
+                        else:
+                            print(f"Error: Invalid artifact raw: {artifact_raw}")
+                            sys.exit(1)
+
+                    artifact["area"] = new_area
+
+                else:
+                    print(f"Error: Invalid artifact: {artifact}")
+                    sys.exit(1)
+
+        # Build artifactDict for each artifactGoup
+
+        for groupId, artifactGroup in self.config.items():
+            print(f"Evaluating artifact group: {groupId}")
+            artifactGroup["artifactDict"] = {}
+
+            for artifact in artifactGroup["artifacts"]:
+                if artifact["id"] in artifactGroup["artifactDict"]:
+                    print(
+                        f"Error: Duplicate artifact id {artifact['id']} in group {groupId}"
+                    )
+                    sys.exit(1)
+
+                artifactGroup["artifactDict"][artifact["id"]] = artifact
+
+                if "area" in artifact:
+                    for areaName, _artifact in artifact["area"].items():
+                        if _artifact["id"] in artifactGroup["artifactDict"]:
+                            print(
+                                f"Error: Duplicate artifact id {_artifact['id']} in group {groupId}"
+                            )
+                            sys.exit(1)
+
+                        artifactGroup["artifactDict"][_artifact["id"]] = _artifact
+
+        # Build self.map
+        # self.map[groupType][artifactId] = groupId
+
+        self.map: Dict[str, Any] = {}
+        for groupId, artifactGroup in self.config.items():
+            groupType = artifactGroup["type"]
+            if groupType not in ["file", "table", "log", "report"]:
+                print(f"Error: Invalid group type {groupType} in group {groupId}")
+                sys.exit(1)
+
+            if groupType not in self.map:
+                self.map[groupType] = {}
+
+            for artifact in artifactGroup["artifacts"]:
+                artifactId = artifact["id"]
+                if artifactId in self.map[groupType]:
+                    print(
+                        f"Error: Duplicate artifact id {artifactId} in group type {groupType}"
+                    )
+                    sys.exit(1)
+
+                self.map[groupType][artifactId] = groupId
+                print(groupType, artifactId, groupId)
+
+                if "area" in artifact:
+                    for areaName, _artifact in artifact["area"].items():
+                        _artifactId = _artifact["id"]
+                        if _artifactId in self.map[groupType]:
+                            print(
+                                f"Error: Duplicate artifact id {_artifactId} in group type {groupType}"
+                            )
+                            sys.exit(1)
+                        self.map[groupType][_artifactId] = groupId
+                        print(groupType, _artifactId, groupId)
+
+    def get_path(
+        self,
+        group_id: str,
+        artifact_id: str,
+        postfix_ls: List[str] | None = None,
+        ext: str | None = None,
+    ) -> Path:
+
+        if group_id not in self.config:
+            print(f"Error: Group id '{group_id}' not found in config.")
+            sys.exit(1)
+
+        artifactGroup = self.config[group_id]
+        _type = artifactGroup["type"]
+        home = artifactGroup["home"]
+        artifact = artifactGroup["artifactDict"][artifact_id]
+
+        name = artifact["path"]
+
+        if _type == "log":
+            if "time" in artifact and artifact["time"]:
+                time_str = arrow.now().format("HH-mm")
+                name = f"{self.date}-{time_str}-{name}"
+            else:
+                name = f"{self.date}-{name}"
+
+        if postfix_ls is not None:
+            for postfix in postfix_ls:
+                name = f"{name}-{postfix}"
+
+        if ext is not None:
+            name = f"{name}.{ext}"
+
+        elif "ext" in artifact:
+            name = f"{name}.{artifact['ext']}"
+
+        out = Path(home) / name
+
         return out
 
-    def build_file_table(self, table_id: str) -> FileTable:
-        assert table_id in self.table_d, table_id
-        table = self.table_d[table_id]
-        ft = FileTable(self.home, self.path, table)
+    def get_area_paths(
+        self,
+        group_id: str,
+        artifact_id: str,
+        ext: str,
+    ) -> Path:
+        artifactGroup = self.config[group_id]
+        _type = artifactGroup["type"]
+        home = artifactGroup["home"]
+        artifact = artifactGroup["artifactDict"][artifact_id]
+
+        if "area" not in artifact:
+            print(
+                f"Error: artifact {artifact_id} in group {group_id} does not have area."
+            )
+            sys.exit(1)
+
+        out = []
+        for areaName, _artifact in artifact["area"].items():
+            name = _artifact["path"]
+            p = Path(home) / f"{name}.{ext}"
+            out.append(p)
+
+        return out
+
+    def build_port(self, in_or_out: Dict[str, Any], tag: str):
+        port_raw = in_or_out[tag]
+        port = self.build_port_by_raw(tag, port_raw)
+        return port
+
+    def build_port_by_raw(self, tag: str, port_raw: Dict[str, Any]):
+        """
+        port = {filter, groupId, atifact}
+        """
+
+        # Verify tag and get groupType
+
+        groupType = ""
+        if tag.startswith("log"):
+            groupType = "log"
+        elif tag.startswith("file"):
+            groupType = "file"
+        elif tag.startswith("report"):
+            groupType = "report"
+        elif tag.startswith("table"):
+            groupType = "table"
+        else:
+            print("Error: Invalid tag:", tag)
+            sys.exit(1)
+
+        # Get artifactId, and filter
+
+        artifactId = ""
+        filter = None
+        if isinstance(port_raw, str):
+            artifactId = port_raw
+        elif isinstance(port_raw, dict):
+            artifactId = port_raw["id"]
+            if "filter" in port_raw:
+                filter = port_raw["filter"]
+        else:
+            print("Error: Invalid port_raw:", port_raw)
+            sys.exit(1)
+
+        # Get groupId
+
+        groupId = self.map.get(groupType, {}).get(artifactId)
+
+        if groupId is None:
+            print(f"Error: Artifact '{artifactId}' not found for tag '{tag}'")
+            sys.exit(1)
+
+        # Get artifact
+
+        artifact = self.config[groupId]["artifactDict"][artifactId]
+
+        # Build port
+
+        port = {
+            "filter": filter,
+            "groupId": groupId,
+            "artifact": artifact,
+        }
+
+        return port
+
+    def build_file_table_with_port(
+        self,
+        port: Dict[str, Any],
+    ) -> FileTable:
+        artifact = port["artifact"]
+        home = Path(self.home) / self.config[port["groupId"]]["home"]
+
+        ft = FileTable(home, artifact)
+
+        return ft
+
+    def build_file_table(self, in_or_out, tag) -> FileTable:
+        port = self.build_port(in_or_out, tag)
+        ft = self.build_file_table_with_port(port)
         return ft
