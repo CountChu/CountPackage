@@ -13,19 +13,26 @@
 
 from notion_client import Client
 
+br = breakpoint
 
 # Query the database
 # The response is paginated, so we need to loop through all pages
+# https://pypi.org/project/notion-client/
 
 
-def query(client, db_id):
+def query(notion, db_id):
     results = []
     has_more = True
     start_cursor = None
 
+    db = notion.databases.retrieve(
+        database_id=db_id, start_cursor=start_cursor, page_size=100
+    )
+    data_source_id = db["data_sources"][0]["id"]
+
     while has_more:
-        response = client.databases.query(
-            database_id=db_id, start_cursor=start_cursor, page_size=100
+        response = notion.data_sources.query(
+            data_source_id=data_source_id, start_cursor=start_cursor, page_size=100
         )
         results.extend(response["results"])
         has_more = response["has_more"]
