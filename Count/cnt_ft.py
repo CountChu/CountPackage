@@ -275,6 +275,9 @@ class ArtifactManager:
                         "ext",
                         "area",
                         "raw",
+                        "info",
+                        "time",
+                        "dirs",
                     ]:
                         print(f"Error: Invalid field '{field}' in artifact: {artifact}")
                         sys.exit(1)
