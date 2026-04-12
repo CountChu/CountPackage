@@ -264,10 +264,24 @@ class ArtifactManager:
 
             for artifact in artifactGroup["artifacts"]:
 
-                if "path" in artifact:
-                    pass
+                # Check fields in artifact, ['id', 'path', 'columns', 'ext']
 
-                elif "area" in artifact:
+                for field in artifact.keys():
+                    if field not in [
+                        "id",
+                        "path",
+                        "columns",
+                        "exts",
+                        "ext",
+                        "area",
+                        "raw",
+                    ]:
+                        print(f"Error: Invalid field '{field}' in artifact: {artifact}")
+                        sys.exit(1)
+
+                # Handle area.
+
+                if "area" in artifact:
                     new_area = {}
                     for areaName, artifact_raw in artifact["area"].items():
                         if type(artifact_raw) is str:
@@ -290,10 +304,6 @@ class ArtifactManager:
                             sys.exit(1)
 
                     artifact["area"] = new_area
-
-                else:
-                    print(f"Error: Invalid artifact: {artifact}")
-                    sys.exit(1)
 
         # Build artifactDict for each artifactGoup
 
