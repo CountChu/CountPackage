@@ -12,19 +12,26 @@
 #
 
 from pathlib import Path
+import arrow
 
 from Count import cnt_config
-from Count.cnt_ft import Database, FileTable
+from Count.cnt_ft import FileTable, ArtifactManager
 
 br = breakpoint
 
-test_p = Path(__file__).parent / "../InvestForge/InvDatabase"
-cfg = cnt_config.load(test_p / "config.yaml")
+test_p = Path(__file__).parent / "../../InvestForge/InvDatabase"
+db_y = cnt_config.load(test_p / "config.yaml")
 
+artifact_mgr = ArtifactManager(db_y)
+cfg = {
+    "input": {
+        "table1": "history",
+    },
+}
+
+ft = artifact_mgr.build_file_table(cfg["input"], "table1")
 
 def test_get_files_1():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
     ft.load()
 
     filter = {
@@ -40,10 +47,7 @@ def test_get_files_1():
     file_p_ls = ft.get_files(filter)
     assert len(file_p_ls) == 1
 
-
 def test_get_files_2():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
     ft.load()
 
     filter = {
@@ -62,8 +66,6 @@ def test_get_files_2():
 
 
 def test_get_files_3():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
     ft.load()
 
     filter = {
@@ -75,8 +77,6 @@ def test_get_files_3():
 
 
 def test_get_one_file():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
     ft.load()
 
     filter = {
@@ -88,8 +88,7 @@ def test_get_one_file():
 
 
 def test_build_file_p():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
+    ft.load()
 
     columns = {
         "date": "2025-07-09",
@@ -104,10 +103,7 @@ def test_build_file_p():
     file_p = ft.build_file_p(columns)
     assert file_p is None
 
-
 def test_load_json_as_array():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
     ft.load()
 
     filter = {
@@ -118,10 +114,7 @@ def test_load_json_as_array():
     data = FileTable.load_json_as_array(file_p_ls)
     assert len(data) == 56
 
-
 def test_get_last_value():
-    db = Database(cfg)
-    ft = db.build_file_table("history")
     ft.load()
 
     date = ft.get_last_value("date")

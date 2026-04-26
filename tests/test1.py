@@ -73,7 +73,7 @@ def test_numbers_add_rows():
 
     test_p = Path(__file__).absolute()
 
-    fn_p = test_p.parent / "test_data/投資 - 下單 - Test.numbers"
+    fn_p = test_p.parent / "投資 - 下單 - Test.numbers"
     assert fn_p.exists(), f"File {fn_p} does not exist."
     sheet_index = 1
     row_count = 3

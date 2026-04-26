@@ -251,9 +251,13 @@ class FileTable:
 
 
 class ArtifactManager:
-    def __init__(self, db_y: Dict[str, Any], date: str):
+    def __init__(self, db_y: Dict[str, Any], date: str | None = None):
         self.home = db_y["__dir__"]
-        self.date = date
+
+        if date is None:
+            self.date = arrow.now().format("YYYY-MM-DD")
+        else:
+            self.date = date
 
         self.config = db_y["artifactConfig"]
 
@@ -307,6 +311,11 @@ class ArtifactManager:
                             sys.exit(1)
 
                     artifact["area"] = new_area
+
+                else:
+                    if artifactGroup['type'] == "file":
+                        if "path" not in artifact:
+                            artifact["path"] = artifact["id"]
 
         # Build artifactDict for each artifactGoup
 

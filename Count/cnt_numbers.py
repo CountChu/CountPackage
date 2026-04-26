@@ -241,3 +241,15 @@ def load_df(fn):
 
     df = pd.DataFrame(data[1:], columns=data[0])
     return df
+
+def build_name_letter_d(name_ls):
+    out = {}
+    i = 1
+    for name in name_ls:
+        out[name] = get_column_letter(i)
+        i += 1
+    return out
+
+def dump(name_letter_d):
+    for name, letter in name_letter_d.items():
+        print(f"    {name}: {letter}")
